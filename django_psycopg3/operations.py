@@ -8,6 +8,8 @@ from psycopg.sql import SQL, Literal
 
 
 class DatabaseOperations(BaseDatabaseOperations):
+    compiler_module = "vinyl.compiler"
+
     cast_char_field_without_max_length = 'varchar'
     explain_prefix = 'EXPLAIN'
     cast_data_types = {

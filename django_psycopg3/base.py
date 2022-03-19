@@ -12,11 +12,12 @@ from contextlib import contextmanager
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import DatabaseError as WrappedDatabaseError, connections
-from django.db.backends.base.base import BaseDatabaseWrapper
+# from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.backends.utils import (
     CursorDebugWrapper as BaseCursorDebugWrapper,
 )
-from django.db.utils import Text
+# from django.db.utils import Text
+from vinyl.futures import later, is_async
 from django.utils.asyncio import async_unsafe
 from django.utils.functional import cached_property
 from django.utils.version import get_version_tuple
@@ -53,6 +54,7 @@ from .introspection import DatabaseIntrospection            # NOQA isort:skip
 from .operations import DatabaseOperations                  # NOQA isort:skip
 from .schema import DatabaseSchemaEditor                    # NOQA isort:skip
 
+from vinyl.backend import BaseDatabaseWrapper
 
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = 'postgresql'
@@ -145,6 +147,22 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # Map the initial connection state
     ctx_templates = {}
 
+    async_pool = None
+
+    async def start_pool(self):
+        from vinyl.futures import later
+        from psycopg_pool import AsyncConnectionPool
+        conn_params = self.get_connection_params()
+        dsn = self.to_dsn(**conn_params)
+        pool = AsyncConnectionPool(dsn, open=False, configure=later(self.configure_connection))
+        await pool.open()
+        # await pool.open()
+        self.async_pool = pool
+        return pool
+
+    def to_dsn(self, **kwargs):
+        return ' '.join(f'{k}={v}' for k, v in kwargs.items())
+
     def get_connection_params(self):
         settings_dict = self.settings_dict
         # None may be used to connect to the default 'postgres' db
@@ -177,16 +195,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             conn_params['port'] = settings_dict['PORT']
         return conn_params
 
-    @async_unsafe
-    def get_new_connection(self, conn_params):
-        ctx = self.get_adapters_template()
-        connection = Database.connect(**conn_params, context=ctx)
-
-        # self.isolation_level must be set:
-        # - after connecting to the database in order to obtain the database's
-        #   default when no value is explicitly specified in options.
-        # - before calling _set_autocommit() because if autocommit is on, that
-        #   will set connection.isolation_level to ISOLATION_LEVEL_AUTOCOMMIT.
+    @later
+    def configure_connection(self, connection):
         options = self.settings_dict['OPTIONS']
         try:
             isolevel = options['isolation_level']
@@ -202,8 +212,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             connection.isolation_level = self.isolation_level
 
         # Use a cursor implementing callproc
-        connection.cursor_factory = Cursor
+        # connection.cursor_factory = Cursor
 
+    @async_unsafe
+    def get_new_connection(self, conn_params):
+        ctx = self.get_adapters_template()
+        connection = Database.connect(**conn_params, context=ctx)
+        self.configure_connection(connection)
         return connection
 
     def ensure_timezone(self):
@@ -240,7 +255,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
         # Dump Text strings using the text oid, where the default unknown oid
         # doesn't work well (e.g. in variadic functions)
-        ctx.register_dumper(Text, StrDumper)
+        # ctx.register_dumper(Text, StrDumper)
 
         # Register a timestamptz loader configured on self.timezone.
         # This, however, can be overridden by create_cursor.
