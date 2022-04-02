@@ -154,9 +154,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         from psycopg_pool import AsyncConnectionPool
         conn_params = self.get_connection_params()
         dsn = self.to_dsn(**conn_params)
-        pool = AsyncConnectionPool(dsn, open=False, configure=later(self.configure_connection))
+        pool = AsyncConnectionPool(dsn, open=False, configure=self.configure_connection)
         await pool.open()
-        # await pool.open()
         self.async_pool = pool
         return pool
 
