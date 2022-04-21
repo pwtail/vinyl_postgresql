@@ -228,17 +228,17 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.configure_connection(connection)
         return connection
 
-    def ensure_timezone(self):
-        if self.connection is None:
-            return False
-
-        conn = self.connection
-        conn_timezone_name = self.connection.info.parameter_status("TimeZone")
-        timezone_name = self.timezone_name
-        if timezone_name and conn_timezone_name != timezone_name:
-            conn.execute(self.ops.set_time_zone_sql(), [timezone_name])
-            return True
-        return False
+    # def ensure_timezone(self):
+    #     if self.connection is None:
+    #         return False
+    #
+    #     conn = self.connection
+    #     conn_timezone_name = self.connection.info.parameter_status("TimeZone")
+    #     timezone_name = self.timezone_name
+    #     if timezone_name and conn_timezone_name != timezone_name:
+    #         conn.execute(self.ops.set_time_zone_sql(), [timezone_name])
+    #         return True
+    #     return False
 
     def get_adapters_template(self):
         key = settings.USE_TZ
@@ -271,113 +271,113 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.ctx_templates[key] = ctx
         return ctx
 
-    def init_connection_state(self):
-        timezone_changed = self.ensure_timezone()
-        if timezone_changed:
-            # Commit after setting the time zone (see #17062)
-            if self.connection.info.transaction_status == TransactionStatus.INTRANS:
-                self.connection.commit()
+    # def init_connection_state(self):
+    #     timezone_changed = self.ensure_timezone()
+    #     if timezone_changed:
+    #         # Commit after setting the time zone (see #17062)
+    #         if self.connection.info.transaction_status == TransactionStatus.INTRANS:
+    #             self.connection.commit()
 
-
-    @async_unsafe
-    def create_cursor(self, name=None):
-        if name:
-            # In autocommit mode, the cursor will be used outside of a
-            # transaction, hence use a holdable cursor.
-            cursor = self.connection.cursor(name, scrollable=False, withhold=self.connection.autocommit)
-        else:
-            cursor = self.connection.cursor()
-
-        # Register the cursor timezone only if the connection disagrees, so that
-        # we avoid to copy the adapters map.
-        tzloader = self.connection.adapters.get_loader(TIMESTAMPTZ_OID, Format.TEXT)
-        if self.timezone != tzloader.timezone:
-            register_tzloader(self.timezone, cursor)
-        return cursor
-
-    @async_unsafe
-    def chunked_cursor(self):
-        self._named_cursor_idx += 1
-        # Get the current async task
-        # Note that right now this is behind @async_unsafe, so this is
-        # unreachable, but in future we'll start loosening this restriction.
-        # For now, it's here so that every use of "threading" is
-        # also async-compatible.
-        try:
-            if hasattr(asyncio, 'current_task'):
-                # Python 3.7 and up
-                current_task = asyncio.current_task()
-            else:
-                # Python 3.6
-                current_task = asyncio.Task.current_task()
-        except RuntimeError:
-            current_task = None
-        # Current task can be none even if the current_task call didn't error
-        if current_task:
-            task_ident = str(id(current_task))
-        else:
-            task_ident = 'sync'
-        # Use that and the thread ident to get a unique name
-        return self._cursor(
-            name='_django_curs_%d_%s_%d' % (
-                # Avoid reusing name in other threads / tasks
-                threading.current_thread().ident,
-                task_ident,
-                self._named_cursor_idx,
-            )
-        )
-
-    def _set_autocommit(self, autocommit):
-        with self.wrap_database_errors:
-            self.connection.autocommit = autocommit
-
-    def check_constraints(self, table_names=None):
-        """
-        Check constraints by setting them to immediate. Return them to deferred
-        afterward.
-        """
-        with self.cursor() as cursor:
-            cursor.execute('SET CONSTRAINTS ALL IMMEDIATE')
-            cursor.execute('SET CONSTRAINTS ALL DEFERRED')
-
-    def is_usable(self):
-        try:
-            # Use a psycopg cursor directly, bypassing Django's utilities.
-            with self.connection.cursor() as cursor:
-                cursor.execute('SELECT 1')
-        except Database.Error:
-            return False
-        else:
-            return True
-
-    @contextmanager
-    def _nodb_cursor(self):
-        try:
-            with super()._nodb_cursor() as cursor:
-                yield cursor
-        except (Database.DatabaseError, WrappedDatabaseError):
-            warnings.warn(
-                "Normally Django will use a connection to the 'postgres' database "
-                "to avoid running initialization queries against the production "
-                "database when it's not needed (for example, when running tests). "
-                "Django was unable to create a connection to the 'postgres' database "
-                "and will use the first PostgreSQL database instead.",
-                RuntimeWarning
-            )
-            for connection in connections.all():
-                if connection.vendor == 'postgresql' and connection.settings_dict['NAME'] != 'postgres':
-                    conn = self.__class__(
-                        {**self.settings_dict, 'NAME': connection.settings_dict['NAME']},
-                        alias=self.alias,
-                    )
-                    try:
-                        with conn.cursor() as cursor:
-                            yield cursor
-                    finally:
-                        conn.close()
-                    break
-            else:
-                raise
+    #
+    # @async_unsafe
+    # def create_cursor(self, name=None):
+    #     if name:
+    #         # In autocommit mode, the cursor will be used outside of a
+    #         # transaction, hence use a holdable cursor.
+    #         cursor = self.connection.cursor(name, scrollable=False, withhold=self.connection.autocommit)
+    #     else:
+    #         cursor = self.connection.cursor()
+    #
+    #     # Register the cursor timezone only if the connection disagrees, so that
+    #     # we avoid to copy the adapters map.
+    #     tzloader = self.connection.adapters.get_loader(TIMESTAMPTZ_OID, Format.TEXT)
+    #     if self.timezone != tzloader.timezone:
+    #         register_tzloader(self.timezone, cursor)
+    #     return cursor
+    #
+    # @async_unsafe
+    # def chunked_cursor(self):
+    #     self._named_cursor_idx += 1
+    #     # Get the current async task
+    #     # Note that right now this is behind @async_unsafe, so this is
+    #     # unreachable, but in future we'll start loosening this restriction.
+    #     # For now, it's here so that every use of "threading" is
+    #     # also async-compatible.
+    #     try:
+    #         if hasattr(asyncio, 'current_task'):
+    #             # Python 3.7 and up
+    #             current_task = asyncio.current_task()
+    #         else:
+    #             # Python 3.6
+    #             current_task = asyncio.Task.current_task()
+    #     except RuntimeError:
+    #         current_task = None
+    #     # Current task can be none even if the current_task call didn't error
+    #     if current_task:
+    #         task_ident = str(id(current_task))
+    #     else:
+    #         task_ident = 'sync'
+    #     # Use that and the thread ident to get a unique name
+    #     return self._cursor(
+    #         name='_django_curs_%d_%s_%d' % (
+    #             # Avoid reusing name in other threads / tasks
+    #             threading.current_thread().ident,
+    #             task_ident,
+    #             self._named_cursor_idx,
+    #         )
+    #     )
+    #
+    # def _set_autocommit(self, autocommit):
+    #     with self.wrap_database_errors:
+    #         self.connection.autocommit = autocommit
+    #
+    # def check_constraints(self, table_names=None):
+    #     """
+    #     Check constraints by setting them to immediate. Return them to deferred
+    #     afterward.
+    #     """
+    #     with self.cursor() as cursor:
+    #         cursor.execute('SET CONSTRAINTS ALL IMMEDIATE')
+    #         cursor.execute('SET CONSTRAINTS ALL DEFERRED')
+    #
+    # def is_usable(self):
+    #     try:
+    #         # Use a psycopg cursor directly, bypassing Django's utilities.
+    #         with self.connection.cursor() as cursor:
+    #             cursor.execute('SELECT 1')
+    #     except Database.Error:
+    #         return False
+    #     else:
+    #         return True
+    #
+    # @contextmanager
+    # def _nodb_cursor(self):
+    #     try:
+    #         with super()._nodb_cursor() as cursor:
+    #             yield cursor
+    #     except (Database.DatabaseError, WrappedDatabaseError):
+    #         warnings.warn(
+    #             "Normally Django will use a connection to the 'postgres' database "
+    #             "to avoid running initialization queries against the production "
+    #             "database when it's not needed (for example, when running tests). "
+    #             "Django was unable to create a connection to the 'postgres' database "
+    #             "and will use the first PostgreSQL database instead.",
+    #             RuntimeWarning
+    #         )
+    #         for connection in connections.all():
+    #             if connection.vendor == 'postgresql' and connection.settings_dict['NAME'] != 'postgres':
+    #                 conn = self.__class__(
+    #                     {**self.settings_dict, 'NAME': connection.settings_dict['NAME']},
+    #                     alias=self.alias,
+    #                 )
+    #                 try:
+    #                     with conn.cursor() as cursor:
+    #                         yield cursor
+    #                 finally:
+    #                     conn.close()
+    #                 break
+    #         else:
+    #             raise
 
     @property
     def psycopg_version(self):
@@ -388,8 +388,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         with self.temporary_connection():
             return self.connection.info.server_version
 
-    def make_debug_cursor(self, cursor):
-        return CursorDebugWrapper(cursor, self)
+    # def make_debug_cursor(self, cursor):
+    #     return CursorDebugWrapper(cursor, self)
 
 
 class BaseTzLoader(TimestamptzLoader):
@@ -425,29 +425,29 @@ class DjangoRangeDumper(RangeDumper):
             dumper.oid = TSTZRANGE_OID
         return dumper
 
-
-class Cursor(Database.Cursor):
-    """
-    A subclass of psycopg cursor implementing callproc.
-    """
-    def callproc(self, name, args=None):
-        if not isinstance(name, sql.Identifier):
-            name = sql.Identifier(name)
-
-        qparts = [sql.SQL("select * from "), name, sql.SQL("(")]
-        if args:
-            for item in args:
-                qparts.append(sql.Literal(item))
-                qparts.append(sql.SQL(","))
-            del qparts[-1]
-
-        qparts.append(sql.SQL(")"))
-        stmt = sql.Composed(qparts)
-        self.execute(stmt)
-        return args
-
-
-class CursorDebugWrapper(BaseCursorDebugWrapper):
-    def copy(self, statement):
-        with self.debug_sql(statement):
-            return self.cursor.copy(statement)
+#
+# class Cursor(Database.Cursor):
+#     """
+#     A subclass of psycopg cursor implementing callproc.
+#     """
+#     def callproc(self, name, args=None):
+#         if not isinstance(name, sql.Identifier):
+#             name = sql.Identifier(name)
+#
+#         qparts = [sql.SQL("select * from "), name, sql.SQL("(")]
+#         if args:
+#             for item in args:
+#                 qparts.append(sql.Literal(item))
+#                 qparts.append(sql.SQL(","))
+#             del qparts[-1]
+#
+#         qparts.append(sql.SQL(")"))
+#         stmt = sql.Composed(qparts)
+#         self.execute(stmt)
+#         return args
+#
+#
+# class CursorDebugWrapper(BaseCursorDebugWrapper):
+#     def copy(self, statement):
+#         with self.debug_sql(statement):
+#             return self.cursor.copy(statement)
