@@ -149,6 +149,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     async_pool = None
 
+    def get_connection_from_pool(self):
+        return self.async_pool.connection()
+
     async def start_pool(self):
         from vinyl.futures import later
         from psycopg_pool import AsyncConnectionPool
@@ -158,6 +161,11 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         await pool.open()
         self.async_pool = pool
         return pool
+
+    @cached_property
+    def sync_connection(self):
+        conn_params = self.get_connection_params()
+        return self.get_new_connection(conn_params)
 
     def to_dsn(self, **kwargs):
         return ' '.join(f'{k}={v}' for k, v in kwargs.items())

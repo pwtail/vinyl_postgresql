@@ -16,11 +16,10 @@ except IOError:
     readme = __doc__
 
 setup(
-    name="django_psycopg3",
+    name="vinyl_postgresql",
     description=readme.splitlines()[0],
     long_description="\n".join(readme.splitlines()[2:]).lstrip(),
-    author="Daniele Varrazzo",
-    author_email="daniele.varrazzo@gmail.com",
+    author_email="abvit89s@gmail.com",
     version="3.0.dev3",
     python_requires=">=3.8",
     install_requires=[

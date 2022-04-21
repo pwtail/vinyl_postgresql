@@ -2,12 +2,12 @@
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django_psycopg3',
+        'ENGINE': 'vinyl_postgresql',
         'NAME': 'piro',
         'USER': 'piro',
     },
     'other': {
-        'ENGINE': 'django_psycopg3',
+        'ENGINE': 'vinyl_postgresql',
         'NAME': 'dj_other',
         'USER': 'piro',
     }
